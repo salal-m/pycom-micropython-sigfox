@@ -73,10 +73,14 @@ APP_INC += -I$(ESP_IDF_COMP_PATH)/bt/bluedroid/hci/include
 APP_INC += -I$(ESP_IDF_COMP_PATH)/bt/bluedroid/gki/include
 APP_INC += -I$(ESP_IDF_COMP_PATH)/bt/bluedroid/api/include
 APP_INC += -I$(ESP_IDF_COMP_PATH)/bt/bluedroid/btc/include
+
+ifeq ($(MOD_COAP_ENABLED), 1)
 APP_INC += -I$(ESP_IDF_COMP_PATH)/coap/libcoap/include/coap
 APP_INC += -I$(ESP_IDF_COMP_PATH)/coap/libcoap/examples
 APP_INC += -I$(ESP_IDF_COMP_PATH)/coap/port/include
 APP_INC += -I$(ESP_IDF_COMP_PATH)/coap/port/include/coap
+endif
+
 APP_INC += -I$(ESP_IDF_COMP_PATH)/mdns/include
 APP_INC += -I../lib/mp-readline
 APP_INC += -I../lib/netutils
@@ -160,9 +164,13 @@ APP_MODS_SRC_C = $(addprefix mods/,\
 	machrmt.c \
 	lwipsocket.c \
 	machtouch.c \
-	modcoap.c \
 	modmdns.c \
 	)
+ifeq ($(MOD_COAP_ENABLED), 1)
+APP_MODS_SRC_C += $(addprefix mods/,\
+	modcoap.c \
+	)
+endif
 
 APP_MODS_LORA_SRC_C = $(addprefix mods/,\
 	modlora.c \

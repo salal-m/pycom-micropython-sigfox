@@ -26,6 +26,9 @@ BTYPE ?= release
 # make Non-Pybytes firmware default
 VARIANT ?=BASE
 
+# COAP is enabled by default
+MOD_COAP_ENABLED ?= 1
+
 ifeq ($(VARIANT),BASE)
 	BUILD_DIR ?=build
 else
@@ -103,7 +106,14 @@ LIBS = -L$(ESP_IDF_COMP_PATH)/esp32/lib -L$(ESP_IDF_COMP_PATH)/esp32/ld -L$(ESP_
        $(ESP_IDF_COMP_PATH)/newlib/lib/libc-psram-workaround.a \
        -lfreertos -ljson -ljsmn -llwip -lnewlib -lvfs -lopenssl -lmbedtls -lwpa_supplicant \
        -lxtensa-debug-module -lbt -lsdmmc -lsoc -lheap -lbootloader_support -lmicro-ecc \
-       -u ld_include_panic_highint_hdl -lsmartconfig_ack -lmesh -lesp_ringbuf -lcoap -lmdns -lefuse -lespcoredump -lapp_update
+       -u ld_include_panic_highint_hdl -lsmartconfig_ack -lmesh -lesp_ringbuf -lmdns -lefuse -lespcoredump -lapp_update
+
+ifeq ($(MOD_COAP_ENABLED), 1)
+    $(info COAP Module Enabled)
+    LIBS += -lcoap
+    CFLAGS += -DMOD_COAP_ENABLED
+endif
+
 ifeq ($(BOARD), $(filter $(BOARD), SIPY LOPY4 FIPY))
     LIBS += sigfox/modsigfox_$(BOARD).a
 $(BUILD)/application.elf: sigfox/modsigfox_$(BOARD).a
