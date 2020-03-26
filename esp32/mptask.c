@@ -53,7 +53,9 @@
 #include "modlora.h"
 #endif
 #if defined (SIPY) || defined(LOPY4) || defined (FIPY)
+#if defined (MOD_SIGFOX_ENABLED)
 #include "sigfox/modsigfox.h"
+#endif
 #endif
 #if defined (GPY) || defined (FIPY)
 #include "modlte.h"
@@ -243,7 +245,9 @@ soft_reset:
         modlora_init0();
 #endif
 #if defined(SIPY) || defined(LOPY4) || defined (FIPY)
+#if defined (MOD_SIGFOX_ENABLED)
         modsigfox_init0();
+#endif
 #endif
     }
 
@@ -256,10 +260,12 @@ soft_reset:
 #endif
 
 #if defined(SIPY) || defined(LOPY4) || defined(FIPY)
+#if defined (MOD_SIGFOX_ENABLED)
     sigfox_update_id();
     sigfox_update_pac();
     sigfox_update_private_key();
     sigfox_update_public_key();
+#endif
 #endif
 
     // append the flash paths to the system path
