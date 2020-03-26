@@ -119,12 +119,11 @@ endif
 
 ifeq ($(MOD_SIGFOX_ENABLED), 1)
     $(info SIGFOX Module Enabled)
-    LIBS += -lsigfox
-    CFLAGS += -DMOD_SIGFOX_ENABLED
 
     ifeq ($(BOARD), $(filter $(BOARD), SIPY LOPY4 FIPY))
-        LIBS += sigfox/modsigfox_$(BOARD).a
-    $(BUILD)/application.elf: sigfox/modsigfox_$(BOARD).a
+        CFLAGS += -DMOD_SIGFOX_ENABLED
+        LIBS += sigfox/modsigfox_$(BOARD).a -lsigfox
+        $(BUILD)/application.elf: sigfox/modsigfox_$(BOARD).a
     endif
 endif
 

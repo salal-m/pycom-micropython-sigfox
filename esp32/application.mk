@@ -447,7 +447,7 @@ ifeq ($(BOARD), LOPY4)
         $(BUILD)/sigfox/transmission.o: CFLAGS = $(CFLAGS_SIGFOX)
         $(BUILD)/sigfox/targets/%.o: CFLAGS = $(CFLAGS_SIGFOX)
         $(BUILD)/lora/spi-board.o: CFLAGS = $(CFLAGS_SIGFOX)
-endif
+    endif
 endif
 ifeq ($(BOARD), SIPY)
     APP_BIN = $(BUILD)/sipy.bin
