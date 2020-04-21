@@ -141,6 +141,25 @@ void TASK_Micropython (void *pvParameters) {
     uint32_t gc_pool_size;
     bool soft_reset = false;
     uint32_t stack_len;
+    bool safeboot = false;
+    boot_info_t boot_info;
+    uint32_t boot_info_offset;
+
+    if (updater_read_boot_info (&boot_info, &boot_info_offset)) {
+        safeboot = boot_info.safeboot;
+    }
+
+#ifdef DELTA_UPDATE_ENABLED
+    if(boot_info.Status == IMG_STATUS_PATCH)
+    {
+        if(updater_patch()) {
+            ESP_LOGI(TAG, "Patched the binary. Now resetting the module...\n");
+            machtimer_deinit();
+            machine_wdt_start(1);
+            for (;;) ;
+        }
+    }
+#endif
 
     uint8_t chip_rev = esp32_get_chip_rev();
 
@@ -222,12 +241,7 @@ soft_reset:
     modbt_init0();
     machtimer_init0();
     modpycom_init0();
-    bool safeboot = false;
-    boot_info_t boot_info;
-    uint32_t boot_info_offset;
-    if (updater_read_boot_info (&boot_info, &boot_info_offset)) {
-        safeboot = boot_info.safeboot;
-    }
+
     if (!soft_reset) {
         if (config_get_wdt_on_boot()) {
             uint32_t timeout_ms = config_get_wdt_on_boot_timeout();

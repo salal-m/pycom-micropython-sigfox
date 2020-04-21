@@ -32,6 +32,9 @@ MOD_COAP_ENABLED ?= 1
 # SIGFOX is enabled by default. It will only be built for supported boards.
 MOD_SIGFOX_ENABLED ?= 1
 
+# Flag to enable/disable Delta Update Feature. Disabled by default
+DELTA_UPDATE_ENABLED ?= 0
+
 ifeq ($(VARIANT),BASE)
 	BUILD_DIR ?=build
 else
@@ -115,6 +118,10 @@ ifeq ($(MOD_COAP_ENABLED), 1)
     $(info COAP Module Enabled)
     LIBS += -lcoap
     CFLAGS += -DMOD_COAP_ENABLED
+endif
+
+ifeq ($(DELTA_UPDATE_ENABLED), 1)
+    CFLAGS += -DDELTA_UPDATE_ENABLED -DBZ_NO_STDIO
 endif
 
 ifeq ($(MOD_SIGFOX_ENABLED), 1)

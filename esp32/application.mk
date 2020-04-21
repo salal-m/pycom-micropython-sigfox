@@ -172,6 +172,22 @@ APP_MODS_SRC_C += $(addprefix mods/,\
 	)
 endif
 
+ifeq ($(DELTA_UPDATE_ENABLED), 1)
+APP_INC += -Ibzlib/
+APP_MODS_SRC_C += $(addprefix mods/,\
+	bspatch.c \
+	)
+APP_MODS_SRC_C += $(addprefix bzlib/,\
+	blocksort.c \
+	huffman.c \
+	crctable.c \
+	randtable.c \
+	compress.c \
+	decompress.c \
+	bzlib.c \
+	)
+endif
+
 APP_MODS_LORA_SRC_C = $(addprefix mods/,\
 	modlora.c \
 	)

@@ -707,9 +707,13 @@ STATIC mp_obj_t mod_pycom_bootmgr (size_t n_args, const mp_obj_t *pos_args, mp_m
         {
             t->items[ARG_status] = mp_obj_new_str("Status: Check", strlen("Status: Check"));
         }
-        else
+        else if(boot_info.Status == 0x01)
         {
             t->items[ARG_status] = mp_obj_new_str("Status: Ready", strlen("Status: Ready"));
+        }
+        else if(boot_info.Status == 0x02)
+        {
+            t->items[ARG_status] = mp_obj_new_str("Status: Patch", strlen("Status: Patch"));
         }
 
         return MP_OBJ_FROM_PTR(t);

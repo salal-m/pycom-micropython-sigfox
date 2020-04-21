@@ -89,4 +89,11 @@ extern int updater_ota_next_slot_address();
  */
 extern bool updater_write_boot_info(boot_info_t *boot_info, uint32_t boot_info_offset);
 
+#ifdef DELTA_UPDATE_ENABLED
+/**
+ * @brief  Patches the current image with the delta file and writes the final image to the free partition
+ */
+extern bool updater_patch(void);
+#endif
+
 #endif /* UPDATER_H_ */
