@@ -32,8 +32,8 @@
 #include "py/obj.h"
 #undef malloc
 #undef free
-#define malloc(x) heap_caps_malloc(x, (1<<10));printf("BZLIB: Mallocing %d BYTES, Line: %d\n", (int)x, __LINE__)
-#define free(x) heap_caps_free(x);printf("BZLIB: Freeing, Line: %d\n", __LINE__)
+#define malloc(x) heap_caps_malloc(x, (1<<10))//;printf("BZLIB: Mallocing %d BYTES, Line: %d\n", (int)x, __LINE__)
+#define free(x) heap_caps_free(x)//;printf("BZLIB: Freeing, Line: %d\n", __LINE__)
 
 /*---------------------------------------------------*/
 /*--- Compression stuff                           ---*/
@@ -512,20 +512,14 @@ int BZ_API(BZ2_bzDecompressInit)
    if (strm->bzalloc == NULL) strm->bzalloc = default_bzalloc;
    if (strm->bzfree == NULL) strm->bzfree = default_bzfree;
 
-   printf("DECOMPRESS_INIT: Checks done. Going to allocate: %d\n", sizeof(DState));
 
    s = BZALLOC( sizeof(DState) );
 
-   printf("DECOMPRESS_INIT: Allocated\n");
    if (s == NULL) return BZ_MEM_ERROR;
 
-   printf("DECOMPRESS_INIT: Initializing the created object. s: %X\n", (int)s);
    s->strm                  = strm;
-   printf("DECOMPRESS_INIT: Stream inited\n");
    strm->state              = s;
-   printf("DECOMPRESS_INIT: Stream State done\n");
    s->state                 = BZ_X_MAGIC_1;
-   printf("DECOMPRESS_INIT: State done\n");
    s->bsLive                = 0;
    s->bsBuff                = 0;
    s->calculatedCombinedCRC = 0;
@@ -533,14 +527,13 @@ int BZ_API(BZ2_bzDecompressInit)
    strm->total_in_hi32      = 0;
    strm->total_out_lo32     = 0;
    strm->total_out_hi32     = 0;
-   printf("DECOMPRESS_INIT: Half done\n");
    s->smallDecompress       = (Bool)small;
    s->ll4                   = NULL;
    s->ll16                  = NULL;
    s->tt                    = NULL;
    s->currBlockNo           = 0;
    s->verbosity             = verbosity;
-   printf("DECOMPRESS_INIT: Done\n");
+
    return BZ_OK;
 }
 
@@ -1335,14 +1328,11 @@ int BZ_API(BZ2_bzBuffToBuffDecompress)
    strm.opaque = NULL;
    ret = BZ2_bzDecompressInit ( &strm, verbosity, small );
    if (ret != BZ_OK) return ret;
-   printf("BZLIB: Decompress Init Done\n");
    strm.next_in = source;
    strm.next_out = dest;
    strm.avail_in = sourceLen;
    strm.avail_out = *destLen;
-   printf("BZLIB: Stream Init Done\n");
    ret = BZ2_bzDecompress ( &strm );
-   printf("BZLIB: Decompress done\n");
    if (ret == BZ_OK) goto output_overflow_or_eof;
    if (ret != BZ_STREAM_END) goto errhandler;
 

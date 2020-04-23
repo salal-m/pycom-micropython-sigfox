@@ -132,6 +132,8 @@ static uint8_t *gc_pool_upy;
 static char fresh_main_py[] = "# main.py -- put your code here!\r\n";
 static char fresh_boot_py[] = "# boot.py -- run on boot-up\r\n";
 
+static const char *TAG = "mptask";
+
 /******************************************************************************
  DEFINE PUBLIC FUNCTIONS
  ******************************************************************************/
