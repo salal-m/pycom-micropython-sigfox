@@ -28,6 +28,13 @@
 #include "bsdiff_api.h"
 #endif
 
+#undef ESP_LOGI
+#undef ESP_LOGD
+#undef ESP_LOGE
+#define ESP_LOGI( tag, format, ... ) printf(format, ##__VA_ARGS__)
+#define ESP_LOGD( tag, format, ... ) printf(format, ##__VA_ARGS__)
+#define ESP_LOGE( tag, format, ... ) printf(format, ##__VA_ARGS__)
+
 /******************************************************************************
  DEFINE PRIVATE CONSTANTS
  ******************************************************************************/
@@ -158,7 +165,7 @@ bool updater_write (uint8_t *buf, uint32_t len) {
 #ifdef DELTA_UPDATE_ENABLED
 bool updater_patch(void) {
     bool status = false;                    // Status to be returned (true for success, false otherwise)
-    unsigned char header[32];
+    unsigned char header[32], buf[8];
 
     uint32_t patch_offset;                  // Offset of the patch file in the flash
     uint32_t patch_size;                    // Size of the patch file
@@ -180,6 +187,7 @@ bool updater_patch(void) {
     } else {
         old_bin_offset = (esp32_get_chip_rev() > 0 ? IMG_UPDATE1_OFFSET_8MB : IMG_UPDATE1_OFFSET_4MB);
     }
+    ESP_LOGD(TAG, "Internal memory available: %d", heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
 
     ESP_LOGI(TAG, "Old_Offset: %d, Offset: %d, Size: %d, ChunkSize: %d, Chunk: %d\n",
              old_bin_offset, updater_data.offset, updater_data.size, updater_data.chunk_size, updater_data.current_chunk);
@@ -220,22 +228,25 @@ bool updater_patch(void) {
 
     xtralen = patch_size - (32 + bzctrllen + bzdatalen);
 
-    ESP_LOGI(TAG, "CtrlLen: %d, DataLen: %d, NewSize: %d, ExtraLen: %d\n", bzctrllen, bzdatalen, newsize, xtralen);
+    ESP_LOGD(TAG, "CtrlLen: %d, DataLen: %d, NewSize: %d, ExtraLen: %d\n", bzctrllen, bzdatalen, newsize, xtralen);
 
     if ((bzctrllen < 0) || (bzdatalen < 0) || (newsize < 0) || (xtralen < 0)) {
-        ESP_LOGE(TAG, "Invalid Block Sizes\n");
+        ESP_LOGE(TAG, "Invalid Block Sizes CtrlLen: %d, DataLen: %d, NewSize: %d, ExtraLen: %d\n", bzctrllen, bzdatalen, newsize, xtralen);
         goto return_status;
     } else {
         const int FLASH_READ_WRITE_SIZE = 512;              // Number of bytes read/written to flash at a time
-        const int BZLIB_MEM = 64116 + 200000 + 50000 + 100; // Memory required by BZLIB during decompression (+100 byte buffer)
 
         uint16_t i = 0;
-        uint32_t inlen;
-        unsigned char *in_buf = NULL;
-        unsigned char *ctrl_buf = NULL, *ctrl_ptr = NULL;
-        unsigned char *diff_buf = NULL, *diff_ptr = NULL;
-        unsigned char *xtra_buf = NULL, *xtra_ptr = NULL;
-        unsigned char *old_bin_buf = NULL;                  // Pointer to read parts of old binary
+        unsigned char *out_buf = NULL;
+        unsigned char *diff_ptr = NULL;
+        unsigned char *xtra_ptr = NULL;
+        unsigned char old_bin_buf[FLASH_READ_WRITE_SIZE];   // Buffer to read parts of old binary
+
+        unsigned char *patch_buf;
+
+        void *ctrl_strm = NULL;
+        void *diff_strm = NULL;
+        void *xtra_strm = NULL;
 
         int ctrl[3];                                        // Buffer to read control block values from the patch file (NOTE: Its value can be negative)
         int oldpos = 0;                                     // Read pointer for old binary
@@ -244,88 +255,40 @@ bool updater_patch(void) {
         unsigned int ctrl_len, diff_len, xtra_len;
         int ret = 0;
 
-        // Get the available memory in the SPIRAM
-        int avail_mem = heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM);
+        // Reading the complete patch file
+        patch_buf = heap_caps_malloc(patch_size, MALLOC_CAP_SPIRAM);
+        if (patch_buf == NULL) {
+            ESP_LOGE(TAG, "Failed to allocate %d bytes for the Patch File\n", patch_size);
+            goto free_mem_and_ret;
+        }
 
-        // Subtract the memory needed by BZLIB
-        avail_mem = avail_mem - BZLIB_MEM;
+        updater_spi_flash_read(patch_offset, patch_buf, patch_size, false);
 
-        // The memory required by the IN BUFFER is the max of all the compressed blocks sizes
-        inlen = (bzctrllen > bzdatalen) ? bzctrllen : bzdatalen;
-        inlen = (inlen > xtralen) ? inlen : xtralen;
+        // Creating BZLIB streams for decompression
+        ret = BZ2_bzDecompressStreamInit(&ctrl_strm, (char *)patch_buf + 32, bzctrllen);
+        if (ret != BZ_OK) {
+            ESP_LOGE(TAG, "Failed to init stream for CTRL block. Error code: %d\n", ret);
+            goto free_mem_and_ret;
+        }
+        ret = BZ2_bzDecompressStreamInit(&diff_strm, (char *)patch_buf + 32 + bzctrllen, bzdatalen);
+        if (ret != BZ_OK) {
+            ESP_LOGE(TAG, "Failed to init stream for DIFF block. Error code: %d\n", ret);
+            goto free_mem_and_ret;
+        }
+        ret = BZ2_bzDecompressStreamInit(&xtra_strm, (char *)patch_buf + 32 + bzctrllen + bzdatalen, xtralen);
+        if (ret != BZ_OK) {
+            ESP_LOGE(TAG, "Failed to init stream for EXTRA block. Error code: %d\n", ret);
+            goto free_mem_and_ret;
+        }
 
-        ESP_LOGD(TAG, "Going to allocate memory for blocks buffer: %d, INLEN: %d\n", avail_mem, inlen);
-        in_buf = heap_caps_malloc(avail_mem, MALLOC_CAP_SPIRAM);
+        // Memory for the buffer to store the decompressed blocks
+        int avail_mem = 100 * 1024;
 
-        if(in_buf == NULL)
-        {
+        ESP_LOGD(TAG, "Going to allocate memory for decompressed blocks buffer: %d\n", avail_mem);
+        out_buf = heap_caps_malloc(avail_mem, MALLOC_CAP_SPIRAM);
+
+        if (out_buf == NULL) {
             ESP_LOGE(TAG, "Failed to allocate the buffer memory of size %d\n", avail_mem);
-            goto free_mem_and_ret;
-        }
-
-        // Reading the Control Block from the flash
-        if (ESP_OK != updater_spi_flash_read(patch_offset + 32, in_buf, bzctrllen, false)) {
-            ESP_LOGE(TAG, "Error while reading control block\n");
-            goto free_mem_and_ret;
-        }
-
-        ctrl_ptr = ctrl_buf = in_buf + inlen;
-        ctrl_len = avail_mem - inlen;
-
-
-        ret = BZ2_bzBuffToBuffDecompress((char *)ctrl_buf, &ctrl_len, (char *)in_buf, bzctrllen, 1, 4);
-
-        if (BZ_OK == ret) {
-            ESP_LOGD(TAG, "Control Block Decompressed. Length: %d --> %d\n", bzctrllen, ctrl_len);
-        } else {
-            ESP_LOGE(TAG, "Control Block Decompression FAILED. Error Code: %d, ctrl_len: %d\n", ret, ctrl_len);
-            goto free_mem_and_ret;
-        }
-
-        if (bzdatalen > inlen) {
-            printf("Data Block length greater than %d\n", inlen);
-            goto free_mem_and_ret;
-        }
-
-        // Reading Diff Data Block from the flash
-        if (ESP_OK != updater_spi_flash_read(patch_offset + bzctrllen + 32, in_buf, bzdatalen, false)) {
-            printf("Error while reading diff block\n");
-            goto free_mem_and_ret;
-        }
-
-        diff_ptr = diff_buf = ctrl_buf + ctrl_len;
-        diff_len = avail_mem - inlen - ctrl_len;
-
-        ret = BZ2_bzBuffToBuffDecompress((char *)diff_buf, &diff_len, (char *)in_buf, bzdatalen, 1, 4);
-
-        if (BZ_OK == ret) {
-            ESP_LOGD(TAG, "Data Block Decompressed. Length: %d --> %d\n", bzdatalen, diff_len);
-        } else {
-            ESP_LOGE(TAG, "Data Block Decompression FAILED. Error Code: %d, diff_len: %d\n", ret, diff_len);
-            goto free_mem_and_ret;
-        }
-
-        // Decompressing EXTRA BYTES Block
-        if (xtralen > inlen) {
-            ESP_LOGE(TAG, "Extra Block length greater than %d\n", inlen);
-            goto free_mem_and_ret;
-        }
-
-        // Reading Extra Bytes Block from the flash
-        if (ESP_OK != updater_spi_flash_read(patch_offset + 32 + bzctrllen + bzdatalen, in_buf, xtralen, false)) {
-            ESP_LOGE(TAG, "Error while reading extra block\n");
-            goto free_mem_and_ret;
-        }
-
-        xtra_ptr = xtra_buf = diff_buf + diff_len;
-        xtra_len = avail_mem - inlen - ctrl_len - diff_len;
-
-        ret = BZ2_bzBuffToBuffDecompress((char *)xtra_buf, &xtra_len, (char *)in_buf, xtralen, 1, 4);
-
-        if (BZ_OK == ret) {
-            ESP_LOGD(TAG, "Extra Block Decompressed. Length: %d --> %d\n", xtralen, xtra_len);
-        } else {
-            ESP_LOGE(TAG, "Extra Block Decompression FAILED. Error Code: %d, xtra_len: %d\n", ret, xtra_len);
             goto free_mem_and_ret;
         }
 
@@ -338,21 +301,19 @@ bool updater_patch(void) {
             goto free_mem_and_ret;
         }
 
-        // Re-using the in_buf
-        old_bin_buf = in_buf;
-
         while (newpos < newsize) {
             unsigned int byte_count = 0;
 
             // Reading the control data
             for (i = 0; i <= 2; i++) {
-                if ((ctrl_ptr + 8 - ctrl_buf) > ctrl_len) {
-                    ESP_LOGE(TAG, "Corrupt Patch. Violated ctrl_len: %d\n", ctrl_len);
+                ctrl_len = 8;
+                ret = BZ2_bzDecompressRead(ctrl_strm, (char *)buf, &ctrl_len);
+                if (ret != BZ_OK || ctrl_len != 8) {
+                    ESP_LOGE(TAG, "PATCHING: Unable to decompress required bytes. ctrl_len: %d\n", ctrl_len);
                     goto free_mem_and_ret;
                 }
 
-                ctrl[i] = offtin(ctrl_ptr);
-                ctrl_ptr += 8;
+                ctrl[i] = offtin(buf);
             }
 
             // Sanity-check
@@ -360,6 +321,21 @@ bool updater_patch(void) {
                 ESP_LOGE(TAG, "PATCHING: Corrupt Patch. Violated newsize: %d\n", newsize);
                 goto free_mem_and_ret;
             }
+
+            // Decompressing ctrl[0] bytes of diff block
+            if (ctrl[0] > avail_mem) {
+                ESP_LOGE(TAG, "PATCHING: ctrl[0] greater than available memory. ctrl[0]: %d\n", ctrl[0]);
+                goto free_mem_and_ret;
+            }
+
+            diff_len = ctrl[0];
+            ret = BZ2_bzDecompressRead(diff_strm, (char *)out_buf, &diff_len);
+
+            if (ret != BZ_OK || diff_len != ctrl[0]) {
+                ESP_LOGE(TAG, "PATCHING: Unable to decompress required bytes. ctrl[0]: %d, diff_len: %d\n", ctrl[0], diff_len);
+                goto free_mem_and_ret;
+            }
+            diff_ptr = out_buf;
 
             // Reading old binary file in chunks combining it with the Diff
             // bytes
@@ -399,6 +375,16 @@ bool updater_patch(void) {
                 goto free_mem_and_ret;
             }
 
+            // Decompressing Extra Bytes of size ctrl[1]
+            xtra_len = ctrl[1];
+            ret = BZ2_bzDecompressRead(xtra_strm, (char *)out_buf, &xtra_len);
+
+            if (ret != BZ_OK || xtra_len != ctrl[1]) {
+                ESP_LOGE(TAG, "PATCHING: Unable to decompress required bytes. ctrl[1]: %d, xtra_len: %d\n", ctrl[1], xtra_len);
+                goto free_mem_and_ret;
+            }
+            xtra_ptr = out_buf;
+
             // Writing the bytes from the Extra Block
             int write_size = ctrl[1];
             while (write_size > FLASH_READ_WRITE_SIZE) {
@@ -411,7 +397,7 @@ bool updater_patch(void) {
 
             if (write_size)
                 if (!updater_write(xtra_ptr + ctrl[1] - write_size, write_size)) {
-                    printf("Failed to write %d bytes from Extra Block to the Flash\n", write_size);
+                    ESP_LOGE(TAG, "Failed to write %d bytes from Extra Block to the Flash\n", write_size);
                     goto free_mem_and_ret;
                 }
 
@@ -431,7 +417,17 @@ bool updater_patch(void) {
         printf("Patching SUCCESSFUL.\n");
 
     free_mem_and_ret:
-        heap_caps_free(in_buf);
+        heap_caps_free(patch_buf);
+        heap_caps_free(out_buf);
+        if (ctrl_strm) {
+            BZ2_bzDecompressEnd(ctrl_strm);
+        }
+        if (diff_strm) {
+            BZ2_bzDecompressEnd(diff_strm);
+        }
+        if (xtra_strm) {
+            BZ2_bzDecompressEnd(xtra_strm);
+        }
     }
 
 return_status:

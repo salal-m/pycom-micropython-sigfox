@@ -271,6 +271,49 @@ BZ_EXTERN const char * BZ_API(BZ2_bzerror) (
    );
 #endif
 
+// BZLIB EXTENDED API (PYCOM)
+/**
+ * @brief  Initializes a bz_stream with the provided source buffer.
+ *         Also calls the DecompressInit which allocates memory
+ *         for stream's stats structure.
+ *
+ * @param  strm         [out] pointer to the created bz_stream
+ * @param  source       [in]  the buffer containing the stream of compressed bytes
+ * @param  sourceLen    [in]  length of the input buffer
+ *
+ * @return BZ_OK if successful or one of the BZ_LIB's error codes.
+ */
+BZ_EXTERN int BZ_API(BZ2_bzDecompressStreamInit) ( 
+      void**        strm,
+      char*         source, 
+      unsigned int  sourceLen );
+
+/**
+ * @brief  De-inits and frees the bz_stream
+ *
+ * @param  strm         [int] pointer to the stream to be de-initialized
+ *
+ * @return BZ_OK if successful or one of the BZ_LIB's error codes.
+ */
+BZ_EXTERN int BZ_API(BZ2_bzDecompressStreamEnd) ( 
+      void*         strm );
+
+/**
+ * @brief  Decompresses and returns a maximum of destLen number of decompressed bytes
+ *         from the provided stream. Updates the destLen to the actual number of
+ *         bytes read.
+ *
+ * @param  strm       [in]    pointer to the created bz_stream
+ * @param  dest       [in]    the buffer containing the stream of compressed bytes
+ * @param  destLen    [inout] length of the input buffer
+ *
+ * @return BZ_OK if successful or one of the BZ_LIB's error codes.
+ */
+BZ_EXTERN int BZ_API(BZ2_bzDecompressRead) ( 
+      void*         strm, 
+      char*         dest,
+      unsigned int* destLen );
+
 #ifdef __cplusplus
 }
 #endif

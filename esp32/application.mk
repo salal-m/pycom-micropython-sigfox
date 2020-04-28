@@ -185,6 +185,7 @@ APP_MODS_SRC_C += $(addprefix bzlib/,\
 	compress.c \
 	decompress.c \
 	bzlib.c \
+	bzlib_ext.c \
 	)
 endif
 

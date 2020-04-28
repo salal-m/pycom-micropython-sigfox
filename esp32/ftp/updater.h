@@ -91,7 +91,9 @@ extern bool updater_write_boot_info(boot_info_t *boot_info, uint32_t boot_info_o
 
 #ifdef DELTA_UPDATE_ENABLED
 /**
- * @brief  Patches the current image with the delta file and writes the final image to the free partition
+ * @brief  Patches the current image with the delta file and writes the final image to the free partition.
+ * 
+ * @return true if patching was successful.
  */
 extern bool updater_patch(void);
 #endif

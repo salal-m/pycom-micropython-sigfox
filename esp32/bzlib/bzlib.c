@@ -29,11 +29,6 @@
 */
 
 #include "bzlib_private.h"
-#include "py/obj.h"
-#undef malloc
-#undef free
-#define malloc(x) heap_caps_malloc(x, (1<<10))//;printf("BZLIB: Mallocing %d BYTES, Line: %d\n", (int)x, __LINE__)
-#define free(x) heap_caps_free(x)//;printf("BZLIB: Freeing, Line: %d\n", __LINE__)
 
 /*---------------------------------------------------*/
 /*--- Compression stuff                           ---*/
@@ -91,7 +86,6 @@ void BZ2_bz__AssertH__fail ( int errcode )
    exit(3);
 }
 #endif
-
 
 /*---------------------------------------------------*/
 static
