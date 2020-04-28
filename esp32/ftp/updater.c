@@ -28,13 +28,6 @@
 #include "bsdiff_api.h"
 #endif
 
-#undef ESP_LOGI
-#undef ESP_LOGD
-#undef ESP_LOGE
-#define ESP_LOGI( tag, format, ... ) printf(format, ##__VA_ARGS__)
-#define ESP_LOGD( tag, format, ... ) printf(format, ##__VA_ARGS__)
-#define ESP_LOGE( tag, format, ... ) printf(format, ##__VA_ARGS__)
-
 /******************************************************************************
  DEFINE PRIVATE CONSTANTS
  ******************************************************************************/
@@ -187,7 +180,6 @@ bool updater_patch(void) {
     } else {
         old_bin_offset = (esp32_get_chip_rev() > 0 ? IMG_UPDATE1_OFFSET_8MB : IMG_UPDATE1_OFFSET_4MB);
     }
-    ESP_LOGD(TAG, "Internal memory available: %d", heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
 
     ESP_LOGI(TAG, "Old_Offset: %d, Offset: %d, Size: %d, ChunkSize: %d, Chunk: %d\n",
              old_bin_offset, updater_data.offset, updater_data.size, updater_data.chunk_size, updater_data.current_chunk);
@@ -420,13 +412,13 @@ bool updater_patch(void) {
         heap_caps_free(patch_buf);
         heap_caps_free(out_buf);
         if (ctrl_strm) {
-            BZ2_bzDecompressEnd(ctrl_strm);
+            BZ2_bzDecompressStreamEnd(ctrl_strm);
         }
         if (diff_strm) {
-            BZ2_bzDecompressEnd(diff_strm);
+            BZ2_bzDecompressStreamEnd(diff_strm);
         }
         if (xtra_strm) {
-            BZ2_bzDecompressEnd(xtra_strm);
+            BZ2_bzDecompressStreamEnd(xtra_strm);
         }
     }
 
